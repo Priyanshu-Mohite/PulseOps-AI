@@ -270,5 +270,7 @@ if __name__ == "__main__":
     search_query = "What is the launch date and database migration dependency for Project Phoenix?"
     matches = search_similar_chunks(search_query, top_k=2)
     for m in matches:
-        print(f"\n[Score: {m['similarity_score']:.4f}] {m['title']} (Chunk {m['chunk_index']}):")
-        print(m['content'])
+        title = m['title'].strip()
+        print(f"\n[Score: {m['similarity_score']:.4f}] {title} (Chunk {m['chunk_index']}):")
+        safe_content = m['content'].encode('ascii', errors='replace').decode('ascii')
+        print(safe_content[:200] + "...")
