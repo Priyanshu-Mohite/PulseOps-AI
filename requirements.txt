@@ -8,8 +8,11 @@ python-dotenv>=1.0.1
 pydantic>=2.9.0
 requests>=2.32.0
 
-# Model Context Protocol (MCP)
+# Model Context Protocol (MCP) & LangChain Adapters
 mcp>=1.0.0
+langchain-mcp-adapters>=0.3.0
+langchain-core>=1.0.0
 
 # 0-Cost Local CPU Embeddings
 fastembed>=0.9.0
+

@@ -6,11 +6,11 @@ and autonomously create or update Jira issues.
 
 import requests
 from requests.auth import HTTPBasicAuth
-from mcp.server.mcpserver import MCPServer
+from mcp.server.fastmcp import FastMCP
 from src.config import config
 
 # Initialize Standalone MCP Server
-mcp = MCPServer("pulseops-jira-server")
+mcp = FastMCP("pulseops-jira-server")
 
 JIRA_AUTH = HTTPBasicAuth(config.JIRA_USER_EMAIL, config.JIRA_API_TOKEN)
 JIRA_HEADERS = {

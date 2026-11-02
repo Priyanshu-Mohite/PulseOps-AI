@@ -5,11 +5,11 @@ and autonomously create or append new documentation.
 """
 
 import requests
-from mcp.server.mcpserver import MCPServer
+from mcp.server.fastmcp import FastMCP
 from src.config import config
 
 # Initialize Standalone MCP Server
-mcp = MCPServer("pulseops-notion-server")
+mcp = FastMCP("pulseops-notion-server")
 
 NOTION_HEADERS = {
     "Authorization": f"Bearer {config.NOTION_API_KEY}",
