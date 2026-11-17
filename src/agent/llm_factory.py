@@ -12,12 +12,25 @@ from src.config import config
 def get_chat_model(temperature: float = 0.2):
     """
     Returns an initialized LangChain chat model.
-    Prioritizes OpenAI -> Gemini -> Fallback.
+    Prioritizes Groq (Ultra-Fast) -> OpenAI -> Gemini -> Fallback.
     """
+    groq_key = config.GROQ_API_KEY or os.getenv("GROQ_API_KEY", "")
     openai_key = config.OPENAI_API_KEY or os.getenv("OPENAI_API_KEY", "")
     gemini_key = config.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")
 
-    # 1. OpenAI
+    # 1. Groq (Ultra-Fast Inference)
+    if groq_key and not groq_key.startswith("gsk_xxx"):
+        try:
+            from langchain_groq import ChatGroq
+            return ChatGroq(
+                model_name=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
+                temperature=temperature,
+                groq_api_key=groq_key
+            )
+        except Exception as e:
+            print(f"[WARN] Failed to initialize ChatGroq: {e}")
+
+    # 2. OpenAI
     if openai_key and not openai_key.startswith("sk-proj-xxx"):
         try:
             from langchain_openai import ChatOpenAI

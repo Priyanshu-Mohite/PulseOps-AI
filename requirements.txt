@@ -15,7 +15,8 @@ langchain-core>=1.0.0
 langgraph>=1.2.0
 langgraph-checkpoint-postgres>=3.2.0
 
-# LLM Providers (OpenAI & Gemini)
+# LLM Providers (Groq, OpenAI & Gemini)
+langchain-groq>=1.2.0
 langchain-openai>=1.8.0
 langchain-google-genai>=4.5.0
 
