@@ -124,10 +124,19 @@ sample_prompts = [
     "What is the engineering spec for PostgreSQL ledger partitioning in Notion?"
 ]
 
-selected_sample = None
+if "query_text_area" not in st.session_state:
+    st.session_state["query_text_area"] = sample_prompts[0]
+
+def set_prompt(text: str):
+    st.session_state["query_text_area"] = text
+
 for idx, prompt_text in enumerate(sample_prompts):
-    if st.sidebar.button(f"📌 {prompt_text[:35]}...", key=f"sample_{idx}"):
-        selected_sample = prompt_text
+    st.sidebar.button(
+        f"📌 {prompt_text[:35]}...",
+        key=f"sample_{idx}",
+        on_click=set_prompt,
+        args=(prompt_text,)
+    )
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("#### 🧠 Neon DB Vector Memory")
@@ -142,7 +151,7 @@ if st.sidebar.button("Inspect User Memories"):
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("#### ⚙️ Execution Mode")
-api_mode = st.sidebar.radio("Route Execution Via:", ["FastAPI Backend (Port 8000)", "Direct LangGraph Engine"], index=1)
+api_mode = st.sidebar.radio("Route Execution Via:", ["Direct LangGraph Engine", "FastAPI Backend (Port 8000)"], index=0)
 api_url = st.sidebar.text_input("FastAPI Base URL", value="http://127.0.0.1:8000")
 
 
@@ -171,7 +180,7 @@ st.markdown(f"""
 # -----------------------------------------------------------------------------
 query_input = st.text_area(
     "Enter your operational question or instruction:",
-    value=selected_sample if selected_sample else "",
+    key="query_text_area",
     height=80,
     placeholder="e.g. Summarize what changed in Project Phoenix this quarter and identify major risks"
 )
@@ -179,44 +188,49 @@ query_input = st.text_area(
 col_run, col_clear = st.columns([1, 5])
 run_clicked = col_run.button("🚀 Run Agent", type="primary")
 
-if run_clicked and query_input.strip():
-    start_time = time.time()
-    
-    with st.spinner("🤖 Multi-hop agent reasoning across Notion PRD, Jira Cloud & Vector Memory..."):
-        agent_result = None
-        error_msg = None
+effective_query = st.session_state.get("query_text_area", "").strip()
+
+if run_clicked:
+    if not effective_query:
+        st.warning("⚠️ Please enter a question or select a demo prompt from the sidebar first!")
+    else:
+        start_time = time.time()
         
-        # 1. Try FastAPI Backend if selected
-        if "FastAPI" in api_mode:
-            try:
-                res = requests.post(
-                    f"{api_url}/api/query",
-                    json={"question": query_input.strip(), "user_id": user_id, "thread_id": thread_id},
-                    timeout=60
-                )
-                if res.status_code == 200:
-                    agent_result = res.json()
-                else:
-                    st.warning(f"FastAPI returned code {res.status_code}. Falling back to Direct LangGraph Engine.")
-                    agent_result = run_agent_workflow(query=query_input.strip(), user_id=user_id, thread_id=thread_id)
-            except Exception as e:
-                st.warning(f"Could not connect to FastAPI ({e}). Falling back to Direct LangGraph Engine.")
-                agent_result = run_agent_workflow(query=query_input.strip(), user_id=user_id, thread_id=thread_id)
-        else:
-            # Direct LangGraph Workflow
-            try:
-                agent_result = run_agent_workflow(query=query_input.strip(), user_id=user_id, thread_id=thread_id)
-            except Exception as e:
-                error_msg = str(e)
+        with st.spinner("🤖 Multi-hop agent reasoning across Notion PRD, Jira Cloud & Vector Memory..."):
+            agent_result = None
+            error_msg = None
+            
+            # 1. Try FastAPI Backend if selected
+            if "FastAPI" in api_mode:
+                try:
+                    res = requests.post(
+                        f"{api_url}/api/query",
+                        json={"question": effective_query, "user_id": user_id, "thread_id": thread_id},
+                        timeout=60
+                    )
+                    if res.status_code == 200:
+                        agent_result = res.json()
+                    else:
+                        st.warning(f"FastAPI returned code {res.status_code}. Falling back to Direct LangGraph Engine.")
+                        agent_result = run_agent_workflow(query=effective_query, user_id=user_id, thread_id=thread_id)
+                except Exception as e:
+                    st.warning(f"Could not connect to FastAPI ({e}). Falling back to Direct LangGraph Engine.")
+                    agent_result = run_agent_workflow(query=effective_query, user_id=user_id, thread_id=thread_id)
+            else:
+                # Direct LangGraph Workflow
+                try:
+                    agent_result = run_agent_workflow(query=effective_query, user_id=user_id, thread_id=thread_id)
+                except Exception as e:
+                    error_msg = str(e)
 
-        elapsed = round(time.time() - start_time, 2)
+            elapsed = round(time.time() - start_time, 2)
 
-    if error_msg:
-        st.error(f"Execution Error: {error_msg}")
-    elif agent_result:
-        st.success(f"Execution completed in **{elapsed}s** with **{agent_result.get('current_hop', 1)} Hops**!")
-        st.session_state["last_result"] = agent_result
-        st.session_state["elapsed"] = elapsed
+        if error_msg:
+            st.error(f"Execution Error: {error_msg}")
+        elif agent_result:
+            st.session_state["last_result"] = agent_result
+            st.session_state["elapsed"] = elapsed
+            st.rerun()
 
 
 # -----------------------------------------------------------------------------
@@ -226,6 +240,7 @@ if "last_result" in st.session_state:
     res = st.session_state["last_result"]
     elapsed_time = st.session_state.get("elapsed", 0.0)
 
+    st.success(f"✅ Multi-hop reasoning completed in **{elapsed_time}s** with **{res.get('current_hop', 1)} Hops**!")
     st.markdown("---")
     st.markdown("## 🔍 Transparent 6-Panel Inspector")
 
