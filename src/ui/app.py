@@ -102,6 +102,36 @@ st.markdown("""
     .card-item.notion { border-left-color: #10b981; }
     .card-item.blocker { border-left-color: #f43f5e; }
     .card-item.memory { border-left-color: #f59e0b; }
+
+    /* Markdown Tables Styling */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 16px 0;
+        font-size: 0.93rem;
+    }
+    th {
+        background-color: #1e293b !important;
+        color: #38bdf8 !important;
+        text-align: left;
+        padding: 10px 14px;
+        border: 1px solid #334155 !important;
+        font-weight: 700;
+    }
+    td {
+        padding: 10px 14px;
+        border: 1px solid #334155 !important;
+        background-color: #0f172a !important;
+        color: #e2e8f0 !important;
+    }
+    tr:nth-child(even) td {
+        background-color: #162032 !important;
+    }
+    a {
+        color: #60a5fa !important;
+        font-weight: 600;
+        text-decoration: underline;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -244,7 +274,9 @@ if "last_result" in st.session_state:
     st.markdown("---")
     st.markdown("## 🔍 Transparent 6-Panel Inspector")
 
-    # Row 1: Panels 1, 2, 3
+    # =========================================================================
+    # ROW 1: Context, Decomposition & Memory (Panels 1, 2, 3)
+    # =========================================================================
     col1, col2, col3 = st.columns(3)
 
     # PANEL 1: Original User Question
@@ -270,7 +302,7 @@ if "last_result" in st.session_state:
             for i, sq in enumerate(sub_qs, 1):
                 st.markdown(f"""
                 <div class="card-item">
-                    <strong>Hop Target {i}:</strong><br/>{sq}
+                    <strong>Target {i}:</strong><br/>{sq}
                 </div>
                 """, unsafe_allow_html=True)
         else:
@@ -287,7 +319,7 @@ if "last_result" in st.session_state:
         # Long-Term Recalled Facts
         recalled = res.get("recalled_memories", [])
         if recalled:
-            st.markdown("**Recalled Long-Term Facts (Vector Search):**")
+            st.markdown("**Recalled Facts (Neon pgvector):**")
             for m in recalled:
                 score = round(m.get("similarity_score", 1.0) * 100, 1)
                 st.markdown(f"""
@@ -299,34 +331,52 @@ if "last_result" in st.session_state:
         else:
             st.caption("ℹ️ No past user facts matched this query.")
 
-        # Gatekeeper Durable Facts Saved
+        # Gatekeeper Durable Facts Decision
         saved_facts = res.get("durable_facts_saved", [])
         if saved_facts:
-            st.markdown("**Gatekeeper Saved Durable Facts:**")
+            st.markdown("**🛡️ Gatekeeper Decision:**")
             for sf in saved_facts:
-                st.success(f"💾 Stored: {sf.get('fact')} ({sf.get('category')})")
+                if sf.get("status") == "saved":
+                    st.success(f"💾 **Stored in Neon DB:** {sf.get('fact')} (`{sf.get('category')}`)")
+                elif sf.get("status") == "skipped":
+                    st.info(f"ℹ️ **Already in Memory:** {sf.get('message', 'Known fact')}")
+                else:
+                    st.write(sf)
         else:
             st.caption("🛡️ Memory Gatekeeper: Query was transient, no new durable fact saved.")
 
-    # Row 2: Panels 4, 5, 6
-    col4, col5, col6 = st.columns(3)
+    st.markdown("<br/>", unsafe_allow_html=True)
 
-    # PANEL 4: MCP Tools Called
+    # =========================================================================
+    # ROW 2: MCP Tool Execution & Raw Evidence (Panels 4 & 5 - 50% / 50%)
+    # =========================================================================
+    col4, col5 = st.columns([1, 1])
+
+    # PANEL 4: MCP Tools Called Across Hops
     with col4:
         st.markdown("""
         <div class="panel-box">
-            <div class="panel-title">🔌 Panel 4: MCP Tools Called</div>
+            <div class="panel-title">🔌 Panel 4: MCP Tools Called Across Hops</div>
         </div>
         """, unsafe_allow_html=True)
         tools = res.get("tools_called", [])
         if tools:
+            # Deduplicate repeated tool signatures from same thread
+            seen = set()
+            unique_tools = []
             for t in tools:
+                sig = (t.get("hop"), t.get("tool_name"), str(t.get("arguments")))
+                if sig not in seen:
+                    seen.add(sig)
+                    unique_tools.append(t)
+
+            for t in unique_tools:
                 server_class = "notion" if "notion" in t.get("mcp_server", "") else "jira"
                 st.markdown(f"""
                 <div class="card-item {server_class}">
-                    <strong>[Hop {t.get('hop')}] {t.get('tool_name')}</strong><br/>
-                    <small>Server: <code>{t.get('mcp_server')}</code></small><br/>
-                    <code>{t.get('arguments')}</code><br/>
+                    <strong>[Hop {t.get('hop')}] {t.get('tool_name')}</strong> &nbsp;
+                    <span style="font-size:0.75rem; background:#334155; padding:2px 8px; border-radius:12px;">{t.get('mcp_server')}</span><br/>
+                    <code style="display:block; margin:4px 0;">{t.get('arguments')}</code>
                     <small style="color:#94a3b8;">{t.get('description', '')}</small>
                 </div>
                 """, unsafe_allow_html=True)
@@ -342,25 +392,42 @@ if "last_result" in st.session_state:
         """, unsafe_allow_html=True)
         evidence_list = res.get("evidence", [])
         if evidence_list:
-            for idx, ev in enumerate(evidence_list):
-                with st.expander(f"Hop {ev.get('hop', 1)}: {ev.get('source')} - {ev.get('title', '')[:30]}"):
+            seen_titles = set()
+            unique_evidence = []
+            for ev in evidence_list:
+                ev_sig = (ev.get("hop"), ev.get("title"))
+                if ev_sig not in seen_titles:
+                    seen_titles.add(ev_sig)
+                    unique_evidence.append(ev)
+
+            for idx, ev in enumerate(unique_evidence):
+                with st.expander(f"Hop {ev.get('hop', 1)}: {ev.get('source')} - {ev.get('title', '')[:35]}"):
                     st.caption(f"Source URL: {ev.get('url', 'N/A')}")
                     st.code(ev.get("content", "")[:600] + ("..." if len(ev.get("content", "")) > 600 else ""), language="markdown")
         else:
             st.caption("No evidence collected.")
 
-    # PANEL 6: Grounded Citation Synthesizer
-    with col6:
-        st.markdown("""
-        <div class="panel-box">
-            <div class="panel-title">✅ Panel 6: Final Cited Synthesis</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown(res.get("final_answer", "No answer generated."))
-        
-        citations = res.get("citations", [])
-        if citations:
-            st.markdown("---")
-            st.markdown("**🔗 Verified Citations:**")
-            for c in citations:
-                st.markdown(f"- [{c.get('title')}]({c.get('url')})")
+    st.markdown("<br/>", unsafe_allow_html=True)
+
+    # =========================================================================
+    # ROW 3: Grounded Final Synthesis (Panel 6 - Full Screen Width 100%)
+    # =========================================================================
+    st.markdown("""
+    <div class="panel-box">
+        <div class="panel-title">✅ Panel 6: Grounded Executive Synthesis & Cross-Platform Citations</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Citations pill bar
+    citations = res.get("citations", [])
+    if citations:
+        st.markdown("**🔗 Verified Cross-Platform Sources:**")
+        citation_cols = st.columns(len(citations))
+        for idx, c in enumerate(citations):
+            with citation_cols[idx]:
+                st.markdown(f"👉 [{c.get('title')}]({c.get('url')})")
+        st.markdown("---")
+
+    # Full Width Final Synthesized Answer
+    st.markdown(res.get("final_answer", "No answer generated."))
+
