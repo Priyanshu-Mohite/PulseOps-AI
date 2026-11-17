@@ -1,5 +1,6 @@
 # Core DB & Vector Extension
 psycopg2-binary>=2.9.9
+psycopg[binary]>=3.2.0
 pgvector>=0.3.2
 sqlalchemy>=2.0.35
 
