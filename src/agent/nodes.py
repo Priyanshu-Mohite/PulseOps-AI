@@ -111,6 +111,7 @@ def investigator_node(state: AgentState) -> Dict[str, Any]:
     """
     current_hop = state.get("current_hop", 1)
     new_evidence = []
+    tools_called = []
     citations = list(state.get("citations", []))
 
     jira_base_url = config.JIRA_INSTANCE_URL or "https://vupune-team-eh7wevbe.atlassian.net"
@@ -120,6 +121,13 @@ def investigator_node(state: AgentState) -> Dict[str, Any]:
     # Hop 1: Baseline cross-platform inspection
     if current_hop == 1:
         # 1. Fetch Notion PRD documentation
+        tools_called.append({
+            "hop": 1,
+            "mcp_server": "notion-mcp-server",
+            "tool_name": "read_full_notion_page",
+            "arguments": {"page_id": notion_page_id},
+            "description": "Fetch live strategic roadmap, architecture specifications & target deadlines from Notion PRD"
+        })
         notion_raw = read_full_notion_page(page_id=notion_page_id)
         if "Error" not in notion_raw:
             new_evidence.append({
@@ -146,7 +154,15 @@ def investigator_node(state: AgentState) -> Dict[str, Any]:
             })
 
         # 2. Fetch live Jira tickets (In Progress & To Do)
-        jira_res = get_jira_issues(jql_query=f"project = {config.JIRA_PROJECT_KEY} ORDER BY created DESC")
+        jql_q1 = f"project = {config.JIRA_PROJECT_KEY} ORDER BY created DESC"
+        tools_called.append({
+            "hop": 1,
+            "mcp_server": "jira-mcp-server",
+            "tool_name": "get_jira_issues",
+            "arguments": {"jql_query": jql_q1},
+            "description": "Fetch live sprint execution tickets, assignees, and active statuses from Jira Cloud"
+        })
+        jira_res = get_jira_issues(jql_query=jql_q1)
         new_evidence.append({
             "hop": 1,
             "source": "Jira",
@@ -158,7 +174,15 @@ def investigator_node(state: AgentState) -> Dict[str, Any]:
     # Hop 2: Deep dive into the blocker
     elif current_hop >= 2:
         # Focus on blocker ticket details
-        blocker_res = get_jira_issues(jql_query=f"project = {config.JIRA_PROJECT_KEY} AND issuetype = 'Bug'")
+        jql_q2 = f"project = {config.JIRA_PROJECT_KEY} AND issuetype = 'Bug'"
+        tools_called.append({
+            "hop": current_hop,
+            "mcp_server": "jira-mcp-server",
+            "tool_name": "get_jira_issues",
+            "arguments": {"jql_query": jql_q2},
+            "description": "Investigate root cause, comments & impacted dependencies for critical blocker PAI-3"
+        })
+        blocker_res = get_jira_issues(jql_query=jql_q2)
         new_evidence.append({
             "hop": current_hop,
             "source": "Jira Blocker Detail",
@@ -173,6 +197,7 @@ def investigator_node(state: AgentState) -> Dict[str, Any]:
 
     return {
         "evidence": new_evidence,
+        "tools_called": tools_called,
         "citations": citations,
         "current_hop": current_hop + 1
     }

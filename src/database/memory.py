@@ -174,6 +174,31 @@ def search_long_term_memory(user_id: str, query: str, top_k: int = 3, threshold:
         conn.close()
 
 
+def get_all_user_memories(user_id: str) -> List[Dict[str, Any]]:
+    """
+    Fetches all persistent memories saved for a user ordered by recency.
+    """
+    if not user_id:
+        return []
+    init_memory_db()
+    conn = get_db_connection()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT id, user_id, fact_text, category, created_at
+                FROM user_long_term_memories
+                WHERE user_id = %s
+                ORDER BY created_at DESC;
+            """, (user_id,))
+            rows = cur.fetchall()
+            return [dict(r) for r in rows]
+    except Exception as e:
+        print(f"[ERROR] get_all_user_memories: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 # ============================================================================
 # 4. Memory Gatekeeper: Evaluates Fact Durability
 # ============================================================================

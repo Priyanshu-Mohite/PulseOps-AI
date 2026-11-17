@@ -26,6 +26,7 @@ class AgentState(TypedDict):
     # Cyclic Execution tracking (Node 3 & 4)
     current_hop: int
     max_hops: int
+    tools_called: Annotated[List[Dict[str, Any]], operator.add]
     evidence: Annotated[List[Dict[str, Any]], operator.add]
     missing_information: List[str]
 

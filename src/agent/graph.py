@@ -90,6 +90,7 @@ def run_agent_workflow(
         "sub_questions": [],
         "current_hop": 1,
         "max_hops": 3,
+        "tools_called": [],
         "evidence": [],
         "missing_information": [],
         "citations": [],
